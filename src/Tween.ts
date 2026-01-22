@@ -474,22 +474,23 @@ export class Tween<T extends UnknownProps = any> {
 		}
 
 		const elapsedTime = time - this._startTime
-		const durationAndDelay = this._duration + (this._repeatDelayTime ?? this._delayTime)
+		const delayToUse = this._repeatDelayTime ?? this._delayTime
+		const durationAndDelay = this._duration + delayToUse
 		const totalTime = this._duration + this._repeat * durationAndDelay
 
-		const calculateElapsedPortion = () => {
+		const calculateElapsedPortion = (currentElapsedTime = elapsedTime) => {
 			if (this._duration === 0) return 1
-			if (elapsedTime > totalTime) {
+			if (currentElapsedTime > totalTime) {
 				return 1
 			}
 
-			const timesRepeated = Math.trunc(elapsedTime / durationAndDelay)
-			const timeIntoCurrentRepeat = elapsedTime - timesRepeated * durationAndDelay
+			const timesRepeated = Math.trunc(currentElapsedTime / durationAndDelay)
+			const timeIntoCurrentRepeat = currentElapsedTime - timesRepeated * durationAndDelay
 			// TODO use %?
-			// const timeIntoCurrentRepeat = elapsedTime % durationAndDelay
+			// const timeIntoCurrentRepeat = currentElapsedTime % durationAndDelay
 
 			const portion = Math.min(timeIntoCurrentRepeat / this._duration, 1)
-			if (portion === 0 && elapsedTime === this._duration) {
+			if (portion === 0 && currentElapsedTime === this._duration) {
 				return 1
 			}
 			return portion
@@ -532,6 +533,16 @@ export class Tween<T extends UnknownProps = any> {
 				}
 
 				this._startTime += durationAndDelay * completeCount
+
+				// For yoyo animations, we need to immediately update the properties after reversing
+				// to ensure smooth transition without flickering
+				if (this._yoyo) {
+					// Calculate the exact time that would have passed in the reversed animation
+					const newElapsedTime = time - this._startTime
+					const newElapsed = Math.min(newElapsedTime / this._duration, 1)
+					const newValue = this._easingFunction(newElapsed)
+					this._updateProperties(this._object, this._valuesStart, this._valuesEnd, newValue)
+				}
 
 				if (this._onRepeatCallback) {
 					this._onRepeatCallback(this._object)
