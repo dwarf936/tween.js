@@ -768,20 +768,22 @@ var Tween = /** @class */ (function () {
             this._onEveryStartCallbackFired = true;
         }
         var elapsedTime = time - this._startTime;
-        var durationAndDelay = this._duration + ((_a = this._repeatDelayTime) !== null && _a !== void 0 ? _a : this._delayTime);
+        var delayToUse = (_a = this._repeatDelayTime) !== null && _a !== void 0 ? _a : this._delayTime;
+        var durationAndDelay = this._duration + delayToUse;
         var totalTime = this._duration + this._repeat * durationAndDelay;
-        var calculateElapsedPortion = function () {
+        var calculateElapsedPortion = function (currentElapsedTime) {
+            if (currentElapsedTime === void 0) { currentElapsedTime = elapsedTime; }
             if (_this._duration === 0)
                 return 1;
-            if (elapsedTime > totalTime) {
+            if (currentElapsedTime > totalTime) {
                 return 1;
             }
-            var timesRepeated = Math.trunc(elapsedTime / durationAndDelay);
-            var timeIntoCurrentRepeat = elapsedTime - timesRepeated * durationAndDelay;
+            var timesRepeated = Math.trunc(currentElapsedTime / durationAndDelay);
+            var timeIntoCurrentRepeat = currentElapsedTime - timesRepeated * durationAndDelay;
             // TODO use %?
-            // const timeIntoCurrentRepeat = elapsedTime % durationAndDelay
+            // const timeIntoCurrentRepeat = currentElapsedTime % durationAndDelay
             var portion = Math.min(timeIntoCurrentRepeat / _this._duration, 1);
-            if (portion === 0 && elapsedTime === _this._duration) {
+            if (portion === 0 && currentElapsedTime === _this._duration) {
                 return 1;
             }
             return portion;
@@ -816,6 +818,15 @@ var Tween = /** @class */ (function () {
                     this._reversed = !this._reversed;
                 }
                 this._startTime += durationAndDelay * completeCount;
+                // For yoyo animations, we need to immediately update the properties after reversing
+                // to ensure smooth transition without flickering
+                if (this._yoyo) {
+                    // Calculate the exact time that would have passed in the reversed animation
+                    var newElapsedTime = time - this._startTime;
+                    var newElapsed = Math.min(newElapsedTime / this._duration, 1);
+                    var newValue = this._easingFunction(newElapsed);
+                    this._updateProperties(this._object, this._valuesStart, this._valuesEnd, newValue);
+                }
                 if (this._onRepeatCallback) {
                     this._onRepeatCallback(this._object);
                 }
