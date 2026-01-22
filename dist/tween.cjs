@@ -803,7 +803,7 @@ var Tween = /** @class */ (function () {
                 if (isFinite(this._repeat)) {
                     this._repeat -= completeCount;
                 }
-                // Reassign starting values, restart by making startTime = now
+                // Reassign starting values and handle yoyo
                 for (property in this._valuesStartRepeat) {
                     if (!this._yoyo && typeof this._valuesEnd[property] === 'string') {
                         this._valuesStartRepeat[property] =
@@ -814,16 +814,56 @@ var Tween = /** @class */ (function () {
                     if (this._yoyo) {
                         this._swapEndStartRepeatValues(property);
                     }
-                    this._valuesStart[property] = this._valuesStartRepeat[property];
+                    // For yoyo mode with no delay, we need to ensure smooth transition
+                    // by setting the start value to the object's current value
+                    if (this._yoyo && this._delayTime === 0) {
+                        // Get the current value from the object
+                        var currentValue = this._object[property];
+                        // Update valuesStart to match current object value
+                        this._valuesStart[property] = currentValue;
+                        // For relative values, we need to keep the original repeat start value
+                        // For absolute values, we need to update the repeat start value as well
+                        if (typeof this._valuesEnd[property] !== 'string') {
+                            this._valuesStartRepeat[property] = currentValue;
+                        }
+                    }
+                    else {
+                        // Normal case: use the repeat start value
+                        this._valuesStart[property] = this._valuesStartRepeat[property];
+                    }
                 }
                 if (this._yoyo) {
                     this._reversed = !this._reversed;
                 }
-                this._startTime += durationAndDelay * completeCount;
+                // Calculate the next startTime correctly
+                var nextStartTime = this._startTime + durationAndDelay * completeCount;
+                if (this._delayTime === 0 && this._yoyo) {
+                    // For yoyo mode with no delay, we need to start the next cycle immediately
+                    // but we must preserve the relative timing to maintain smooth animation
+                    this._startTime = time;
+                }
+                else {
+                    this._startTime = nextStartTime;
+                }
                 if (this._onRepeatCallback) {
                     this._onRepeatCallback(this._object);
                 }
                 this._onEveryStartCallbackFired = false;
+                // For yoyo mode with no delay, we need to immediately update the properties
+                // with the new start/end values for this frame to ensure smooth transition
+                if (this._yoyo && this._delayTime === 0) {
+                    // Recalculate elapsed time with new start time
+                    var newElapsedTime = time - this._startTime;
+                    // Calculate the new portion of the current repeat cycle
+                    var newPortion = Math.min(newElapsedTime / this._duration, 1);
+                    var newValue = this._easingFunction(newPortion);
+                    // Update properties with the new values
+                    this._updateProperties(this._object, this._valuesStart, this._valuesEnd, newValue);
+                    // Call the update callback if it exists
+                    if (this._onUpdateCallback) {
+                        this._onUpdateCallback(this._object, newPortion);
+                    }
+                }
                 return true;
             }
             else {
@@ -883,13 +923,7 @@ var Tween = /** @class */ (function () {
     };
     Tween.prototype._swapEndStartRepeatValues = function (property) {
         var tmp = this._valuesStartRepeat[property];
-        var endValue = this._valuesEnd[property];
-        if (typeof endValue === 'string') {
-            this._valuesStartRepeat[property] = this._valuesStartRepeat[property] + parseFloat(endValue);
-        }
-        else {
-            this._valuesStartRepeat[property] = this._valuesEnd[property];
-        }
+        this._valuesStartRepeat[property] = this._valuesEnd[property];
         this._valuesEnd[property] = tmp;
     };
     Tween.autoStartOnUpdate = false;
